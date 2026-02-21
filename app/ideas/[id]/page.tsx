@@ -18,6 +18,7 @@ const statusVariant: Record<string, 'info' | 'warning' | 'success'> = {
 };
 
 async function getIdeaWithMessages(id: string) {
+  if (!process.env.MONGODB_URI) return null;
   try {
     await connectDB();
     const idea = await Idea.findById(id)

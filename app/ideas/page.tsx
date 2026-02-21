@@ -7,6 +7,7 @@ import Agent from '@/lib/models/Agent';
 export const dynamic = 'force-dynamic';
 
 async function getIdeas(status?: string, tag?: string) {
+  if (!process.env.MONGODB_URI) return [];
   try {
     await connectDB();
     const query: any = {};

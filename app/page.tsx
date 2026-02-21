@@ -7,6 +7,7 @@ import Idea from '@/lib/models/Idea';
 export const dynamic = 'force-dynamic';
 
 async function getStats() {
+  if (!process.env.MONGODB_URI) return { agents: 0, ideas: 0, agreed: 0 };
   try {
     await connectDB();
     const [agents, ideas, agreed] = await Promise.all([
