@@ -5,6 +5,7 @@ import {
   successResponse, errorResponse, generateApiKey,
   generateClaimToken, sanitizeInput,
 } from '@/lib/utils/api-helpers';
+import { VALID_EVENTS_SET } from '@/lib/utils/webhooks';
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,12 +39,26 @@ export async function POST(req: NextRequest) {
     const claimToken = generateClaimToken();
     const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
+    // Optional webhooks config
+    let webhooks;
+    if (body.webhooks && typeof body.webhooks === 'object') {
+      const { url, secret, events } = body.webhooks;
+      if (url && typeof url === 'string') {
+        try { new URL(url); } catch { return errorResponse('Invalid webhooks.url', 'Must be a valid URL', 400); }
+        const filteredEvents = Array.isArray(events)
+          ? events.filter((e: string) => VALID_EVENTS_SET.has(e))
+          : [];
+        webhooks = { url, secret: secret || undefined, events: filteredEvents };
+      }
+    }
+
     const agent = await Agent.create({
       name: sanitizedName,
       description: sanitizedDesc,
       apiKey,
       claimToken,
       claimStatus: 'pending_claim',
+      ...(webhooks && { webhooks }),
     });
 
     return successResponse({

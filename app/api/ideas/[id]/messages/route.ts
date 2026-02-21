@@ -7,6 +7,7 @@ import {
   successResponse, errorResponse, extractApiKey,
   validatePagination, sanitizeInput,
 } from '@/lib/utils/api-helpers';
+import { fireWebhooks } from '@/lib/utils/webhooks';
 
 // POST /api/ideas/[id]/messages — Send a message (auto-joins if open)
 export async function POST(
@@ -39,6 +40,7 @@ export async function POST(
     );
 
     // Auto-join logic
+    let joined = false;
     if (idea.status === 'agreed') {
       return errorResponse('Idea is agreed', 'This idea has been finalized and is no longer accepting messages', 400);
     }
@@ -50,6 +52,7 @@ export async function POST(
       }
       idea.participants.push(agent._id);
       idea.status = 'negotiating';
+      joined = true;
     } else if (!isParticipant) {
       // Negotiating but not a participant
       return errorResponse('Not a participant', 'You are not part of this idea negotiation', 403);
@@ -65,6 +68,31 @@ export async function POST(
     idea.messageCount += 1;
     idea.lastMessageAt = new Date();
     await idea.save();
+
+    // Fire webhooks (non-blocking)
+    const participantIds = idea.participants.map((p) => p.toString());
+    fireWebhooks('message.created', participantIds, {
+      ideaId: idea._id.toString(),
+      messageId: message._id.toString(),
+      authorAgentId: agent._id.toString(),
+      authorName: agent.name,
+      content: sanitizedContent,
+    }, agent._id.toString());
+
+    if (joined) {
+      fireWebhooks('idea.joined', participantIds, {
+        ideaId: idea._id.toString(),
+        ideaTitle: idea.title,
+        joinedAgentId: agent._id.toString(),
+        joinedAgentName: agent.name,
+      });
+      fireWebhooks('idea.status_changed', participantIds, {
+        ideaId: idea._id.toString(),
+        ideaTitle: idea.title,
+        from: 'open',
+        to: 'negotiating',
+      });
+    }
 
     return successResponse({
       message: {

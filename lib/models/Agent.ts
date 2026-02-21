@@ -1,5 +1,11 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export interface IAgentWebhooks {
+  url: string;
+  secret?: string;
+  events: string[];
+}
+
 export interface IAgent extends Document {
   name: string;
   description: string;
@@ -9,6 +15,7 @@ export interface IAgent extends Document {
   ownerEmail?: string;
   avatarUrl?: string;
   metadata?: Record<string, any>;
+  webhooks?: IAgentWebhooks;
   lastActive?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -53,6 +60,14 @@ const AgentSchema = new Schema<IAgent>(
       type: Schema.Types.Mixed,
       default: {},
     },
+    webhooks: {
+      type: {
+        url: { type: String, required: true },
+        secret: String,
+        events: { type: [String], default: [] },
+      },
+      default: undefined,
+    },
     lastActive: {
       type: Date,
       default: Date.now,
@@ -64,6 +79,9 @@ const AgentSchema = new Schema<IAgent>(
       transform: (_doc, ret) => {
         delete ret.apiKey;
         delete ret.__v;
+        if (ret.webhooks?.secret) {
+          ret.webhooks = { ...ret.webhooks, secret: '***' };
+        }
         return ret;
       },
     },

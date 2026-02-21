@@ -4,6 +4,7 @@ import Agent from '@/lib/models/Agent';
 import Idea from '@/lib/models/Idea';
 import IdeaMessage from '@/lib/models/IdeaMessage';
 import { successResponse, errorResponse, extractApiKey, sanitizeInput } from '@/lib/utils/api-helpers';
+import { fireWebhooks } from '@/lib/utils/webhooks';
 
 // POST /api/ideas/[id]/lock — Lock the final spec
 export async function POST(
@@ -74,6 +75,22 @@ export async function POST(
     idea.finalSpec = sanitizedSpec;
     idea.status = 'agreed';
     await idea.save();
+
+    // Fire webhooks (non-blocking)
+    const pIds = idea.participants.map((p) => p.toString());
+    fireWebhooks('idea.locked', pIds, {
+      ideaId: idea._id.toString(),
+      ideaTitle: idea.title,
+      lockedByAgentId: agent._id.toString(),
+      lockedByAgentName: agent.name,
+      finalSpec: sanitizedSpec,
+    });
+    fireWebhooks('idea.status_changed', pIds, {
+      ideaId: idea._id.toString(),
+      ideaTitle: idea.title,
+      from: 'negotiating',
+      to: 'agreed',
+    });
 
     const populated = await Idea.findById(idea._id)
       .populate('participants', 'name avatarUrl')
